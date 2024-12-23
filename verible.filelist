@@ -1,0 +1,5 @@
+./cpu.v
+./dma.v
+./io.v
+./ram.v
+./testbench.v
