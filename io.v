@@ -8,12 +8,16 @@ module io #(
     inout [SZ-1:0] addr,
     output w_notr,
     inout [WSZ-1:0] data,
-    output reg clk,
+    output clk,
     input rst
 );
-    always #1 begin
-        clk <= !clk;
-    end
+    clk_gen #(
+        .PRD(1)
+    ) _clk_gen (
+        .rst(rst),
+        .clk(clk)
+    );
+
     reg [1:0] command_state;
     reg [SZ-1:0] command_addr;
     reg [SZ-1:0] command_length;
@@ -29,33 +33,38 @@ module io #(
     assign addr   = rx_interrupt ? 'z : bus_write_addr;
     assign data   = w_notr ? bus_write_data : 'z;
 
-    always @(negedge rst) begin
-        command_state <= 0;
-        tx_interrupt <= 0;
-        clk <= 0;
-        for (int i = 0; i < 16; i = i + 1) internal_data[i] = $rand;
-    end
-    always @(clk)
-        if (rx_interrupt) begin
-            if (command_state == 0) begin
-                command_state  <= 1;
-                command_addr   <= addr;
-                command_length <= data;
-            end else if (command_state == 1) begin
-                command_state <= 2;
-                command_mem_addr <= addr;
-                command_w_notr <= data[0];
-            end
-        end else if (command_state == 2) begin
-            if (|command_length) begin
-                bus_write_addr <= command_mem_addr;
-                bus_write_data <= internal_data[command_addr];
-                command_addr <= command_addr + 1;
-                command_mem_addr <= command_mem_addr + 1;
-                command_length <= command_length - 1;
-            end else begin
-                command_state <= 0;
-                tx_interrupt  <= 1;
+    always @(negedge rst, posedge clk)
+        if (!rst) begin
+            command_state <= 0;
+            tx_interrupt  <= 0;
+            for (int i = 0; i < 16; i = i + 1) internal_data[i] <= WSZ'($urandom);
+        end else begin
+            if (rx_interrupt) begin
+                if (command_state == 0) begin
+                    // get request range
+                    command_state  <= 1;
+                    command_addr   <= addr;
+                    command_length <= data;
+                end else if (command_state == 1) begin
+                    // get memory address and w_notr
+                    command_state <= 2;
+                    command_mem_addr <= addr;
+                    command_w_notr <= data[0];
+                end
+            end else if (command_state == 2) begin
+                if (|command_length) begin
+                    // write requested data to ram
+                    bus_write_addr <= command_mem_addr;
+                    bus_write_data <= internal_data[command_addr[1:0]];
+                    command_addr <= command_addr + 1;
+                    command_mem_addr <= command_mem_addr + 1;
+                    command_length <= command_length - 1;
+                end else begin
+                    // send completion interrupt
+                    command_state <= 0;
+                    tx_interrupt  <= 1;
+                    command_state <= 3;
+                end
             end
         end
 endmodule
