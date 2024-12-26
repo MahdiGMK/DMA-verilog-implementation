@@ -1,6 +1,6 @@
 module testbench;
-    localparam int SZ = 8;  // ram size
-    localparam int WSZ = 8;  // word size
+    localparam SZ = 8;  // ram size
+    localparam WSZ = 8;  // word size
 
     reg rst;
     initial begin
@@ -30,9 +30,10 @@ module testbench;
         .SZ (SZ),
         .WSZ(WSZ)
     ) _ram (
-        .addr  (ram_address),
+        .addr(ram_address),
+        .data(ram_data),
         .w_notr(ram_w_notr),
-        .data  (ram_data)
+        .clk(cpu_clk)
     );
 
     dma #(
@@ -50,12 +51,14 @@ module testbench;
         .cpu_data(cpu_data),
         .cpu_clk(cpu_clk),
 
-        .io_rx_interrupt(cpu_rx_interrupt),
-        .io_tx_interrupt(cpu_tx_interrupt),
-        .io_addr(cpu_addr),
-        .io_w_notr(cpu_w_notr),
-        .io_data(cpu_data),
-        .io_clk(cpu_clk)
+        .io_rx_interrupt(io_rx_interrupt),
+        .io_tx_interrupt(io_tx_interrupt),
+        .io_addr(io_addr),
+        .io_w_notr(io_w_notr),
+        .io_data(io_data),
+        .io_clk(io_clk),
+
+        .rst(rst)
     );
 
     cpu #(

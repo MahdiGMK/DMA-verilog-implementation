@@ -6,7 +6,7 @@ module cpu #(
     input rx_interrupt,
     output reg tx_interrupt,
     inout [SZ-1:0] addr,
-    output w_notr,
+    output reg w_notr,
     inout [WSZ-1:0] data,
     output clk,
     input rst
@@ -25,38 +25,46 @@ module cpu #(
     reg [WSZ-1:0] bus_write_data;
     reg [SZ-1:0] bus_write_addr;
 
-    assign w_notr = tx_interrupt;
-    assign addr   = rx_interrupt ? 'z : bus_write_addr;
-    assign data   = w_notr ? bus_write_data : 'z;
+    assign addr = bus_write_addr;
+    assign data = w_notr ? bus_write_data : 'z;
 
     always @(negedge rst, posedge clk) begin
         if (!rst) begin
             command_state <= 0;
-            tx_interrupt  <= 0;
+            tx_interrupt <= 0;
+            w_notr <= 0;
         end else begin
             if (rx_interrupt) begin
                 $display($time, " cpu : job is done");
-                tx_interrupt   <= 0;
+                w_notr <= 0;
+                tx_interrupt <= 0;
                 bus_write_addr <= 12;
-                #1 $display($time, " ram[%d] = %d", bus_write_addr, data);
+                #2 $display($time, " ram[%d] = %x", bus_write_addr, data);
                 bus_write_addr <= 13;
-                #1 $display($time, " ram[%d] = %d", bus_write_addr, data);
+                #2 $display($time, " ram[%d] = %x", bus_write_addr, data);
                 bus_write_addr <= 14;
-                #1 $display($time, " ram[%d] = %d", bus_write_addr, data);
+                #2 $display($time, " ram[%d] = %x", bus_write_addr, data);
+                bus_write_addr <= 15;
+                #2 $display($time, " ram[%d] = %x", bus_write_addr, data);
+
+                $finish(0);
             end else begin
                 if (command_state == 0) begin
-                    command_state  <= 1;
-                    tx_interrupt   <= 1;
+                    command_state <= 1;
+                    w_notr <= 1;
+                    tx_interrupt <= 1;
                     bus_write_addr <= 5;
                     bus_write_data <= 3;
                     $display($time, " cpu : read[5,6,7]");
                 end else if (command_state == 1) begin
-                    command_state  <= 2;
-                    tx_interrupt   <= 1;
+                    command_state <= 2;
+                    w_notr <= 1;
+                    tx_interrupt <= 1;
                     bus_write_addr <= 12;
                     bus_write_data <= 1;
                     $display($time, " cpu : write_to[12,13,14]");
                 end else begin
+                    w_notr <= 0;
                     tx_interrupt <= 0;
                 end
             end

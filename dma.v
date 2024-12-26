@@ -37,10 +37,10 @@ module dma #(
 
     always @(posedge io_clk, negedge rst) begin
         if (!rst) begin
-            io_addr_buffer <= {0, 0, 0, 0};
-            io_data_buffer <= {0, 0, 0, 0};
+            io_rx_interrupt <= 0;
             io_tx_interrupt_buffer <= 0;
             io_buffer_ptr <= 0;
+            io_rx_interrupt_status <= 0;
         end else begin
             if (cpu_buffer_ptr == 2 && io_rx_interrupt_status < 2) begin
                 io_rx_interrupt <= 1;
@@ -50,6 +50,7 @@ module dma #(
             end else begin
                 io_rx_interrupt <= 0;
                 if (io_w_notr) begin
+                    $display($time, " dma : enque mem[%d] = %x", io_addr, io_data);
                     io_addr_buffer[io_buffer_ptr] <= io_addr;
                     io_data_buffer[io_buffer_ptr] <= io_data;
                     io_tx_interrupt_buffer <= io_tx_interrupt;
@@ -65,27 +66,39 @@ module dma #(
 
     reg [WSZ-1:0] ram_write_data;
     assign ram_data = ram_w_notr ? ram_write_data : 'z;
+    assign cpu_data = cpu_w_notr ? 'z : ram_data;
 
-    reg [2:0] io_buffer_write_status;
+    reg [1:0] io_buffer_write_status;
     always @(posedge cpu_clk, negedge rst) begin
         if (!rst) begin
-            cpu_addr_buffer <= {0, 0};
-            cpu_data_buffer <= {0, 0};
-            cpu_buffer_ptr  <= 0;
+            cpu_buffer_ptr <= 0;
+            cpu_rx_interrupt <= 0;
+            ram_w_notr <= 0;
+            io_buffer_write_status <= 0;
         end else begin
             if (cpu_tx_interrupt) begin
+                $display($time, " dma : cpu tx interrupt => %d , %d ", cpu_addr, cpu_data);
                 cpu_addr_buffer[cpu_buffer_ptr[0]] <= cpu_addr;
                 cpu_data_buffer[cpu_buffer_ptr[0]] <= cpu_data;
                 cpu_buffer_ptr <= cpu_buffer_ptr + 1;
                 ram_w_notr <= 0;
-            end else if (io_tx_interrupt_buffer && io_buffer_write_status < 4) begin
-                ram_addr <= io_data_buffer[io_buffer_write_status[1:0]];
+            end else if (io_tx_interrupt_buffer && io_buffer_write_status < io_buffer_ptr) begin
+                $display($time, " dma : deque mem[%d] = %x",
+                         io_addr_buffer[io_buffer_write_status[1:0]],
+                         io_data_buffer[io_buffer_write_status[1:0]]);
+                ram_addr <= io_addr_buffer[io_buffer_write_status[1:0]];
                 ram_write_data <= io_data_buffer[io_buffer_write_status[1:0]];
                 ram_w_notr <= 1;
                 io_buffer_write_status <= io_buffer_write_status + 1;
             end else begin
-                ram_w_notr <= 0;
-
+                // $monitor($time, " cpu: ", cpu_addr, cpu_data);
+                ram_w_notr <= cpu_w_notr;
+                ram_addr <= cpu_addr;
+                ram_write_data <= cpu_data;
+                if (io_buffer_write_status == io_buffer_ptr && |io_buffer_ptr) begin
+                    cpu_rx_interrupt <= 1;
+                    io_buffer_write_status <= 3;
+                end
             end
         end
     end
