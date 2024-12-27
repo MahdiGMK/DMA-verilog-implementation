@@ -73,8 +73,8 @@ module cpu #(
                     $display($time, " cpu : write_to[12,13,14]");
                 end else if (command_state == 2) begin
                     command_state <= 3;
-                    w_notr <= 1;
                     tx_interrupt <= 0;
+                    w_notr <= 1;
                     // normal memory writes
                     bus_write_addr <= 15;
                     bus_write_data <= 'hdd;
